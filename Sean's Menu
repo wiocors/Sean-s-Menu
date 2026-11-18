@@ -1,0 +1,1156 @@
+
+--========================================================
+--                 SEAN'S MENU
+--                  RED EDITION
+--                 UI REDESIGN
+--========================================================
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+--========================================================
+-- THEMES
+--========================================================
+
+local Themes = {
+    Red = {
+        Background = Color3.fromRGB(14, 13, 18),
+        Surface = Color3.fromRGB(23, 21, 28),
+        Surface2 = Color3.fromRGB(33, 30, 39),
+        Accent = Color3.fromRGB(220, 45, 60),
+        Outline = Color3.fromRGB(105, 35, 45),
+        White = Color3.fromRGB(245, 245, 250),
+        Gray = Color3.fromRGB(155, 150, 165)
+    },
+
+    Blue = {
+        Background = Color3.fromRGB(13, 17, 27),
+        Surface = Color3.fromRGB(21, 28, 43),
+        Surface2 = Color3.fromRGB(31, 42, 62),
+        Accent = Color3.fromRGB(55, 130, 255),
+        Outline = Color3.fromRGB(40, 75, 140),
+        White = Color3.fromRGB(245, 245, 250),
+        Gray = Color3.fromRGB(155, 165, 185)
+    },
+
+    Purple = {
+        Background = Color3.fromRGB(19, 14, 28),
+        Surface = Color3.fromRGB(30, 23, 43),
+        Surface2 = Color3.fromRGB(44, 33, 62),
+        Accent = Color3.fromRGB(160, 85, 255),
+        Outline = Color3.fromRGB(95, 55, 145),
+        White = Color3.fromRGB(245, 245, 250),
+        Gray = Color3.fromRGB(170, 155, 190)
+    },
+
+    Green = {
+        Background = Color3.fromRGB(13, 21, 17),
+        Surface = Color3.fromRGB(21, 32, 26),
+        Surface2 = Color3.fromRGB(32, 47, 37),
+        Accent = Color3.fromRGB(55, 190, 110),
+        Outline = Color3.fromRGB(40, 115, 75),
+        White = Color3.fromRGB(245, 245, 250),
+        Gray = Color3.fromRGB(150, 175, 160)
+    },
+
+    Pink = {
+        Background = Color3.fromRGB(25, 15, 23),
+        Surface = Color3.fromRGB(38, 24, 35),
+        Surface2 = Color3.fromRGB(55, 34, 50),
+        Accent = Color3.fromRGB(255, 85, 170),
+        Outline = Color3.fromRGB(145, 55, 105),
+        White = Color3.fromRGB(255, 245, 250),
+        Gray = Color3.fromRGB(185, 155, 175)
+    }
+}
+
+local ThemeNames = {"Red", "Blue", "Purple", "Green", "Pink"}
+local CurrentTheme = "Red"
+local Theme = Themes[CurrentTheme]
+
+local ThemeBindings = {}
+local Highlights = {}
+
+local function Colorize(object, property, role)
+    object[property] = Theme[role]
+
+    table.insert(ThemeBindings, {
+        Object = object,
+        Property = property,
+        Role = role
+    })
+end
+
+local function ApplyTheme()
+    Theme = Themes[CurrentTheme]
+
+    for _, binding in ipairs(ThemeBindings) do
+        if binding.Object and binding.Object.Parent then
+            binding.Object[binding.Property] = Theme[binding.Role]
+        end
+    end
+
+    for _, highlight in pairs(Highlights) do
+        if highlight and highlight.Parent then
+            highlight.FillColor = Theme.Accent
+            highlight.OutlineColor = Theme.White
+        end
+    end
+
+    if ThemeButton then
+        ThemeButton.Text = "THEME: " .. string.upper(CurrentTheme) .. "  >"
+    end
+
+    if Subtitle then
+        Subtitle.Text = string.upper(CurrentTheme) .. " EDITION"
+    end
+end
+
+local function NextTheme()
+    local index = table.find(ThemeNames, CurrentTheme) or 1
+    index = index % #ThemeNames + 1
+    CurrentTheme = ThemeNames[index]
+    ApplyTheme()
+end
+
+--========================================================
+-- VARIABLES
+--========================================================
+
+local WalkSpeedValue = 16
+local JumpPowerValue = 50
+
+local NoclipEnabled = false
+local InfiniteJumpEnabled = false
+local ESPEnabled = false
+
+local MenuOpen = true
+local CurrentPage = "Home"
+local ActiveSlider = nil
+local OriginalCollision = {}
+
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+
+--========================================================
+-- GUI SETUP
+--========================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SeansMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+
+-- Render above ordinary game ScreenGuis.
+ScreenGui.DisplayOrder = 999999
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+--========================================================
+-- UI HELPERS
+--========================================================
+
+local function Corner(object, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 10)
+    corner.Parent = object
+    return corner
+end
+
+local function Outline(object, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = thickness or 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = object
+    Colorize(stroke, "Color", "Outline")
+    return stroke
+end
+
+local function MakeTween(object, duration, properties, style)
+    local tween = TweenService:Create(
+        object,
+        TweenInfo.new(
+            duration,
+            style or Enum.EasingStyle.Quint,
+            Enum.EasingDirection.Out
+        ),
+        properties
+    )
+
+    tween:Play()
+    return tween
+end
+
+local function CreateLabel(parent, text, position, size, textSize)
+    local label = Instance.new("TextLabel")
+    label.Position = position
+    label.Size = size
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = textSize or 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+
+    Colorize(label, "TextColor3", "White")
+    return label
+end
+
+local function CreateCard(parent, position, size)
+    local card = Instance.new("Frame")
+    card.Position = position
+    card.Size = size
+    card.BorderSizePixel = 0
+    card.Parent = parent
+
+    Colorize(card, "BackgroundColor3", "Surface")
+    Corner(card, 11)
+    Outline(card, 1)
+
+    return card
+end
+
+local function CreateButton(parent, text, position, size, callback)
+    local button = Instance.new("TextButton")
+    button.Position = position
+    button.Size = size
+    button.Text = text
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
+    button.Parent = parent
+
+    Colorize(button, "BackgroundColor3", "Accent")
+    Colorize(button, "TextColor3", "White")
+
+    Corner(button, 8)
+    Outline(button, 1)
+
+    button.MouseEnter:Connect(function()
+        MakeTween(button, 0.12, {
+            BackgroundTransparency = 0.15
+        })
+    end)
+
+    button.MouseLeave:Connect(function()
+        MakeTween(button, 0.12, {
+            BackgroundTransparency = 0
+        })
+    end)
+
+    button.MouseButton1Click:Connect(function()
+        MakeTween(button, 0.08, {
+            Size = size - UDim2.fromOffset(3, 3)
+        })
+
+        task.delay(0.09, function()
+            if button.Parent then
+                MakeTween(button, 0.1, {Size = size})
+            end
+        end)
+
+        callback()
+    end)
+
+    return button
+end
+
+--========================================================
+-- MAIN WINDOW
+--========================================================
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(610, 430)
+Main.Position = UDim2.new(0.5, -305, 0.5, -215)
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Parent = ScreenGui
+
+Colorize(Main, "BackgroundColor3", "Background")
+Corner(Main, 16)
+Outline(Main, 1.5)
+
+--========================================================
+-- TOP BAR
+--========================================================
+
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 68)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = Main
+
+Colorize(TopBar, "BackgroundColor3", "Surface")
+Corner(TopBar, 16)
+
+local Title = CreateLabel(
+    TopBar,
+    "SEAN'S MENU",
+    UDim2.fromOffset(19, 10),
+    UDim2.new(1, -130, 0, 27),
+    19
+)
+
+Subtitle = CreateLabel(
+    TopBar,
+    "RED EDITION",
+    UDim2.fromOffset(20, 39),
+    UDim2.new(1, -130, 0, 16),
+    10
+)
+
+local MinimizeButton = CreateButton(
+    TopBar,
+    "—",
+    UDim2.new(1, -88, 0, 18),
+    UDim2.fromOffset(32, 30),
+    function()
+        HideMenu()
+    end
+)
+
+local CloseButton = CreateButton(
+    TopBar,
+    "×",
+    UDim2.new(1, -46, 0, 18),
+    UDim2.fromOffset(32, 30),
+    function()
+        HideMenu()
+    end
+)
+
+--========================================================
+-- SIDEBAR
+--========================================================
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 150, 1, -68)
+Sidebar.Position = UDim2.fromOffset(0, 68)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Main
+
+Colorize(Sidebar, "BackgroundColor3", "Surface")
+
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.PaddingTop = UDim.new(0, 17)
+SidebarPadding.PaddingLeft = UDim.new(0, 12)
+SidebarPadding.PaddingRight = UDim.new(0, 12)
+SidebarPadding.Parent = Sidebar
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Padding = UDim.new(0, 10)
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Parent = Sidebar
+
+--========================================================
+-- CONTENT
+--========================================================
+
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -150, 1, -68)
+Content.Position = UDim2.fromOffset(150, 68)
+Content.BorderSizePixel = 0
+Content.ClipsDescendants = true
+Content.Parent = Main
+
+Colorize(Content, "BackgroundColor3", "Background")
+
+local Pages = {}
+
+local function CreatePage(name, scrollable)
+    local page
+
+    if scrollable then
+        page = Instance.new("ScrollingFrame")
+        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        page.ScrollBarThickness = 3
+        page.ScrollBarImageColor3 = Theme.Accent
+    else
+        page = Instance.new("Frame")
+    end
+
+    page.Name = name
+    page.Size = UDim2.fromScale(1, 1)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ClipsDescendants = true
+    page.Visible = false
+    page.Parent = Content
+
+    Pages[name] = page
+    return page
+end
+
+local HomePage = CreatePage("Home", false)
+local FeaturesPage = CreatePage("Features", true)
+local SettingsPage = CreatePage("Settings", true)
+
+--========================================================
+-- NAVIGATION
+--========================================================
+
+local NavButtons = {}
+
+local function SwitchPage(name)
+    if CurrentPage == name then return end
+
+    local oldPage = Pages[CurrentPage]
+    local newPage = Pages[name]
+
+    if not newPage then return end
+
+    if oldPage then
+        oldPage.Visible = false
+    end
+
+    CurrentPage = name
+    newPage.Visible = true
+    newPage.Position = UDim2.fromOffset(14, 0)
+
+    MakeTween(newPage, 0.22, {
+        Position = UDim2.fromOffset(0, 0)
+    })
+
+    for pageName, button in pairs(NavButtons) do
+        local selected = pageName == name
+
+        MakeTween(button, 0.15, {
+            BackgroundColor3 = selected and Theme.Accent or Theme.Surface2,
+            TextColor3 = selected and Theme.White or Theme.Gray
+        })
+    end
+end
+
+local function CreateNavButton(name, order)
+    local button = Instance.new("TextButton")
+    button.Name = name .. "Button"
+    button.Size = UDim2.new(1, 0, 0, 40)
+    button.LayoutOrder = order
+    button.Text = name
+    button.Font = Enum.Font.GothamSemibold
+    button.TextSize = 12
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
+    button.Parent = Sidebar
+
+    Colorize(button, "BackgroundColor3", "Surface2")
+    Colorize(button, "TextColor3", "Gray")
+
+    Corner(button, 8)
+    Outline(button, 1)
+
+    NavButtons[name] = button
+
+    button.MouseEnter:Connect(function()
+        if CurrentPage ~= name then
+            MakeTween(button, 0.12, {
+                BackgroundColor3 = Theme.Accent,
+                TextColor3 = Theme.White
+            })
+        end
+    end)
+
+    button.MouseLeave:Connect(function()
+        if CurrentPage ~= name then
+            MakeTween(button, 0.12, {
+                BackgroundColor3 = Theme.Surface2,
+                TextColor3 = Theme.Gray
+            })
+        end
+    end)
+
+    button.MouseButton1Click:Connect(function()
+        SwitchPage(name)
+    end)
+
+    return button
+end
+
+CreateNavButton("Home", 1)
+CreateNavButton("Features", 2)
+CreateNavButton("Settings", 3)
+
+--========================================================
+-- HOME PAGE
+--========================================================
+
+local WelcomeCard = CreateCard(
+    HomePage,
+    UDim2.fromOffset(18, 18),
+    UDim2.new(1, -36, 0, 120)
+)
+
+CreateLabel(
+    WelcomeCard,
+    "Welcome to Sean's Menu",
+    UDim2.fromOffset(16, 17),
+    UDim2.new(1, -30, 0, 25),
+    17
+)
+
+local WelcomeText = CreateLabel(
+    WelcomeCard,
+    "Your menu is ready. Select a section from the sidebar.",
+    UDim2.fromOffset(16, 51),
+    UDim2.new(1, -30, 0, 42),
+    11
+)
+
+WelcomeText.Font = Enum.Font.Gotham
+WelcomeText.TextWrapped = true
+WelcomeText.TextColor3 = Theme.Gray
+
+local StatusCard = CreateCard(
+    HomePage,
+    UDim2.fromOffset(18, 153),
+    UDim2.new(1, -36, 0, 90)
+)
+
+CreateLabel(
+    StatusCard,
+    "MENU STATUS",
+    UDim2.fromOffset(16, 13),
+    UDim2.new(1, -30, 0, 20),
+    11
+)
+
+local StatusText = CreateLabel(
+    StatusCard,
+    "●  Running",
+    UDim2.fromOffset(16, 44),
+    UDim2.new(1, -30, 0, 22),
+    13
+)
+
+StatusText.TextColor3 = Color3.fromRGB(70, 220, 120)
+
+--========================================================
+-- MOVEMENT
+--========================================================
+
+local function ApplyMovementSettings()
+    local character = Player.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    humanoid.WalkSpeed = WalkSpeedValue
+    humanoid.UseJumpPower = true
+    humanoid.JumpPower = JumpPowerValue
+end
+
+--========================================================
+-- SLIDERS
+--========================================================
+
+local function CreateSlider(parent, title, minimum, maximum, default, position, callback)
+    local card = CreateCard(
+        parent,
+        position,
+        UDim2.new(1, -36, 0, 70)
+    )
+
+    CreateLabel(
+        card,
+        title,
+        UDim2.fromOffset(13, 8),
+        UDim2.new(0.7, 0, 0, 18),
+        12
+    )
+
+    local valueLabel = CreateLabel(
+        card,
+        tostring(default),
+        UDim2.new(1, -65, 0, 8),
+        UDim2.fromOffset(50, 18),
+        12
+    )
+
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+    local track = Instance.new("TextButton")
+    track.Position = UDim2.fromOffset(13, 42)
+    track.Size = UDim2.new(1, -26, 0, 7)
+    track.Text = ""
+    track.AutoButtonColor = false
+    track.BorderSizePixel = 0
+    track.Parent = card
+
+    Colorize(track, "BackgroundColor3", "Surface2")
+    Corner(track, 10)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.fromScale((default - minimum) / (maximum - minimum), 1)
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+
+    Colorize(fill, "BackgroundColor3", "Accent")
+    Corner(fill, 10)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(14, 14)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Position = UDim2.new((default - minimum) / (maximum - minimum), 0, 0.5, 0)
+    knob.BorderSizePixel = 0
+    knob.Parent = track
+
+    Colorize(knob, "BackgroundColor3", "White")
+    Corner(knob, 10)
+    Outline(knob, 1)
+
+    local function SetValue(x)
+        local width = track.AbsoluteSize.X
+        if width <= 0 then return end
+
+        local percent = math.clamp(
+            (x - track.AbsolutePosition.X) / width,
+            0,
+            1
+        )
+
+        local value = math.floor(
+            minimum + (maximum - minimum) * percent + 0.5
+        )
+
+        local normalized = (value - minimum) / (maximum - minimum)
+
+        fill.Size = UDim2.fromScale(normalized, 1)
+        knob.Position = UDim2.new(normalized, 0, 0.5, 0)
+        valueLabel.Text = tostring(value)
+
+        callback(value)
+    end
+
+    local function Begin(input)
+        ActiveSlider = SetValue
+        SetValue(input.Position.X)
+    end
+
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            Begin(input)
+        end
+    end)
+
+    knob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            Begin(input)
+        end
+    end)
+
+    return function(value)
+        local normalized = (value - minimum) / (maximum - minimum)
+
+        fill.Size = UDim2.fromScale(normalized, 1)
+        knob.Position = UDim2.new(normalized, 0, 0.5, 0)
+        valueLabel.Text = tostring(value)
+    end
+end
+
+UIS.InputChanged:Connect(function(input)
+    if ActiveSlider and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        ActiveSlider(input.Position.X)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        ActiveSlider = nil
+    end
+end)
+
+--========================================================
+-- TOGGLES
+--========================================================
+
+local function CreateToggle(parent, title, description, position, callback)
+    local card = CreateCard(
+        parent,
+        position,
+        UDim2.new(1, -36, 0, 57)
+    )
+
+    CreateLabel(
+        card,
+        title,
+        UDim2.fromOffset(13, 7),
+        UDim2.new(1, -100, 0, 18),
+        12
+    )
+
+    local desc = CreateLabel(
+        card,
+        description,
+        UDim2.fromOffset(13, 30),
+        UDim2.new(1, -100, 0, 15),
+        9
+    )
+
+    desc.Font = Enum.Font.Gotham
+    desc.TextColor3 = Theme.Gray
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(58, 27)
+    button.Position = UDim2.new(1, -72, 0.5, -13)
+    button.Text = "OFF"
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 10
+    button.BorderSizePixel = 0
+    button.Parent = card
+
+    Colorize(button, "BackgroundColor3", "Surface2")
+    Colorize(button, "TextColor3", "Gray")
+
+    Corner(button, 8)
+    Outline(button, 1)
+
+    local enabled = false
+
+    local function Update()
+        button.Text = enabled and "ON" or "OFF"
+
+        MakeTween(button, 0.15, {
+            BackgroundColor3 = enabled and Theme.Accent or Theme.Surface2,
+            TextColor3 = enabled and Theme.White or Theme.Gray
+        })
+
+        callback(enabled)
+    end
+
+    button.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        Update()
+    end)
+end
+
+--========================================================
+-- FEATURES PAGE
+--========================================================
+
+CreateToggle(
+    FeaturesPage,
+    "Noclip",
+    "Disable character collisions",
+    UDim2.fromOffset(18, 12),
+    function(enabled)
+        NoclipEnabled = enabled
+
+        if not enabled and Player.Character then
+            for _, part in ipairs(Player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and OriginalCollision[part] ~= nil then
+                    part.CanCollide = OriginalCollision[part]
+                    OriginalCollision[part] = nil
+                end
+            end
+        end
+    end
+)
+
+CreateToggle(
+    FeaturesPage,
+    "Infinite Jump",
+    "Allow repeated jumping",
+    UDim2.fromOffset(18, 78),
+    function(enabled)
+        InfiniteJumpEnabled = enabled
+    end
+)
+
+CreateToggle(
+    FeaturesPage,
+    "Glow ESP",
+    "Highlight players through walls",
+    UDim2.fromOffset(18, 144),
+    function(enabled)
+        ESPEnabled = enabled
+    end
+)
+
+CreateSlider(
+    FeaturesPage,
+    "WalkSpeed",
+    16,
+    100,
+    WalkSpeedValue,
+    UDim2.fromOffset(18, 210),
+    function(value)
+        WalkSpeedValue = value
+        ApplyMovementSettings()
+    end
+)
+
+CreateSlider(
+    FeaturesPage,
+    "JumpPower",
+    50,
+    200,
+    JumpPowerValue,
+    UDim2.fromOffset(18, 290),
+    function(value)
+        JumpPowerValue = value
+        ApplyMovementSettings()
+    end
+)
+
+--========================================================
+-- SETTINGS PAGE
+--========================================================
+
+local InfoCard = CreateCard(
+    SettingsPage,
+    UDim2.fromOffset(18, 15),
+    UDim2.new(1, -36, 0, 100)
+)
+
+CreateLabel(
+    InfoCard,
+    "SETTINGS",
+    UDim2.fromOffset(15, 13),
+    UDim2.new(1, -30, 0, 22),
+    15
+)
+
+local InfoText = CreateLabel(
+    InfoCard,
+    "Customize the appearance of your menu.",
+    UDim2.fromOffset(15, 44),
+    UDim2.new(1, -30, 0, 30),
+    11
+)
+
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextColor3 = Theme.Gray
+
+local ThemeCard = CreateCard(
+    SettingsPage,
+    UDim2.fromOffset(18, 130),
+    UDim2.new(1, -36, 0, 110)
+)
+
+CreateLabel(
+    ThemeCard,
+    "COLOR THEME",
+    UDim2.fromOffset(15, 12),
+    UDim2.new(1, -30, 0, 20),
+    12
+)
+
+ThemeButton = CreateButton(
+    ThemeCard,
+    "THEME: RED  >",
+    UDim2.fromOffset(15, 47),
+    UDim2.new(1, -30, 0, 42),
+    NextTheme
+)
+
+--========================================================
+-- REOPEN ICON
+--========================================================
+
+local ReopenButton = Instance.new("TextButton")
+ReopenButton.Name = "ReopenButton"
+ReopenButton.Size = UDim2.fromOffset(50, 50)
+ReopenButton.Position = UDim2.new(0, -65, 0.5, -25)
+ReopenButton.Text = "S"
+ReopenButton.Font = Enum.Font.GothamBlack
+ReopenButton.TextSize = 23
+ReopenButton.BorderSizePixel = 0
+ReopenButton.Visible = false
+ReopenButton.Parent = ScreenGui
+
+Colorize(ReopenButton, "BackgroundColor3", "Accent")
+Colorize(ReopenButton, "TextColor3", "White")
+
+Corner(ReopenButton, 15)
+Outline(ReopenButton, 1.5)
+
+--========================================================
+-- DRAGGING
+--========================================================
+
+local function MakeDraggable(object, dragArea)
+    local dragging = false
+    local dragStart
+    local startPosition
+    local dragInput
+
+    dragArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+
+            dragging = true
+            dragStart = input.Position
+            startPosition = object.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    dragArea.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+
+            object.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+MakeDraggable(Main, TopBar)
+MakeDraggable(ReopenButton, ReopenButton)
+
+--========================================================
+-- OPEN / CLOSE
+--========================================================
+
+function HideMenu()
+    if not MenuOpen then return end
+    MenuOpen = false
+
+    local tween = MakeTween(Main, 0.25, {
+        Position = UDim2.new(0.5, -305, 1.2, 0)
+    }, Enum.EasingStyle.Quint)
+
+    tween.Completed:Wait()
+
+    Main.Visible = false
+    ReopenButton.Visible = true
+
+    MakeTween(ReopenButton, 0.3, {
+        Position = UDim2.new(0, 20, 0.5, -25)
+    }, Enum.EasingStyle.Back)
+end
+
+function ShowMenu()
+    if MenuOpen then return end
+    MenuOpen = true
+
+    MakeTween(ReopenButton, 0.18, {
+        Position = UDim2.new(0, -65, 0.5, -25)
+    })
+
+    task.wait(0.18)
+
+    ReopenButton.Visible = false
+    Main.Visible = true
+    Main.Position = UDim2.new(0.5, -305, 1.2, 0)
+
+    MakeTween(Main, 0.35, {
+        Position = UDim2.new(0.5, -305, 0.5, -215)
+    }, Enum.EasingStyle.Back)
+end
+
+MinimizeButton.MouseButton1Click:Connect(HideMenu)
+CloseButton.MouseButton1Click:Connect(HideMenu)
+ReopenButton.MouseButton1Click:Connect(ShowMenu)
+
+UIS.InputBegan:Connect(function(input, processed)
+    if processed then return end
+
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        if MenuOpen then
+            HideMenu()
+        else
+            ShowMenu()
+        end
+    end
+end)
+
+--========================================================
+-- INFINITE JUMP
+--========================================================
+
+UIS.JumpRequest:Connect(function()
+    if InfiniteJumpEnabled and Humanoid and Humanoid.Health > 0 then
+        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+--========================================================
+-- NOCLIP
+--========================================================
+
+RunService.Stepped:Connect(function()
+    if not NoclipEnabled then return end
+
+    local character = Player.Character
+    if not character then return end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if OriginalCollision[part] == nil then
+                OriginalCollision[part] = part.CanCollide
+            end
+
+            part.CanCollide = false
+        end
+    end
+end)
+
+--========================================================
+-- ESP
+--========================================================
+
+local function RemoveHighlight(player)
+    local highlight = Highlights[player]
+
+    if highlight then
+        highlight:Destroy()
+        Highlights[player] = nil
+    end
+end
+
+local function AddHighlight(player)
+    if player == Player or not ESPEnabled then return end
+
+    local character = player.Character
+    if not character then return end
+
+    if Highlights[player] and Highlights[player].Parent == character then
+        return
+    end
+
+    RemoveHighlight(player)
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "SeansPlayerHighlight"
+    highlight.Adornee = character
+    highlight.FillColor = Theme.Accent
+    highlight.OutlineColor = Theme.White
+    highlight.FillTransparency = 0.45
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = character
+
+    Highlights[player] = highlight
+end
+
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Player then
+            if ESPEnabled then
+                AddHighlight(player)
+            else
+                RemoveHighlight(player)
+            end
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        UpdateESP()
+    end)
+end)
+
+Players.PlayerRemoving:Connect(RemoveHighlight)
+
+task.spawn(function()
+    while ScreenGui.Parent do
+        UpdateESP()
+        task.wait(0.5)
+    end
+end)
+
+--========================================================
+-- CHARACTER RESPAWN
+--========================================================
+
+Player.CharacterAdded:Connect(function(newCharacter)
+    Character = newCharacter
+    Humanoid = newCharacter:WaitForChild("Humanoid")
+
+    table.clear(OriginalCollision)
+
+    task.wait(0.2)
+    ApplyMovementSettings()
+    UpdateESP()
+end)
+
+--========================================================
+-- REOPEN ICON PULSE
+--========================================================
+
+local PulseRunning = true
+
+task.spawn(function()
+    while PulseRunning and ScreenGui.Parent do
+        if not MenuOpen and ReopenButton.Visible then
+            MakeTween(ReopenButton, 0.8, {
+                Size = UDim2.fromOffset(54, 54)
+            }, Enum.EasingStyle.Sine).Completed:Wait()
+
+            if not PulseRunning then break end
+
+            MakeTween(ReopenButton, 0.8, {
+                Size = UDim2.fromOffset(50, 50)
+            }, Enum.EasingStyle.Sine).Completed:Wait()
+        else
+            task.wait(0.2)
+        end
+    end
+end)
+
+ScreenGui.Destroying:Connect(function()
+    PulseRunning = false
+end)
+
+--========================================================
+-- STARTUP: OPEN HOME IMMEDIATELY
+--========================================================
+
+ApplyTheme()
+
+-- Make Home visible immediately. No button click required.
+CurrentPage = "Home"
+HomePage.Visible = true
+FeaturesPage.Visible = false
+SettingsPage.Visible = false
+
+for name, button in pairs(NavButtons) do
+    local selected = name == "Home"
+
+    button.BackgroundColor3 = selected and Theme.Accent or Theme.Surface2
+    button.TextColor3 = selected and Theme.White or Theme.Gray
+end
+
+Main.Visible = true
+Main.Position = UDim2.new(0.5, -305, 0.5, -235)
+
+ApplyMovementSettings()
+
+MakeTween(Main, 0.4, {
+    Position = UDim2.new(0.5, -305, 0.5, -215)
+}, Enum.EasingStyle.Back)
+
+print("Sean's Menu loaded successfully!")
